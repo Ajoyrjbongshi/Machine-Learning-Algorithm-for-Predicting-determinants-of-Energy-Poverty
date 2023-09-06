@@ -7,22 +7,23 @@ editor: visual
 
 ```{r}
 library(tidyverse)
+library(palmerpenguins)
 ```
 
 
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+## Generate data from Normal Distribution
 
 ```{r}
-1 + 1
+x <- rnorm(1000,2,5)
+hist(x)
 ```
 
-You can add options to executable code like this
 
 ```{r}
-#| echo: false
-2 * 2
+penguins |> 
+  ggplot(aes(x= bill_length_mm))+
+  geom_histogram(bins = 30,col = "Blue",alpha=0.5)
+
 ```
 
 The `echo: false` option disables the printing of code (only output is displayed).
