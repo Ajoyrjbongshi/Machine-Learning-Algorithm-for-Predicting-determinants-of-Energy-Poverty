@@ -24,3 +24,12 @@ penguins |>
 ```
 
 ## Data Cleaning
+```{r}
+head(mtcars)
+ggplot(mtcars,aes(x= disp,y=hp,col=as.factor(cyl)))+
+  geom_point(alpha=0.7,size=3)+
+  theme_minimal()
+
+
+```
+
