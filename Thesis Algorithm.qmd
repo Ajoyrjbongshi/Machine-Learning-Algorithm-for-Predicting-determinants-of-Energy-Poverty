@@ -6,7 +6,24 @@ editor: visual
 
 ```{r,message=FALSE}
 library(tidyverse)
+library(haven)
 library(palmerpenguins)
+```
+
+## Import dataset
+
+```{r,message=FALSE}
+
+PR <- read_spss("BDPR7RFL.SAV")
+
+PR_df <-PR |> 
+  select(HV226, HV206, HV208, HV243A, HV221, HV209, HV242) |> 
+  rename(cooking_fuel= HV226, Electricity = HV206,
+          Television = HV208, Mobile.phone = HV243A, Landline = HV221,
+          Refrigerator = HV209, separate.kitchen = HV209) ## Renaming Variable
+
+head(PR_df)
+  
 ```
 
 ## Generate data from Normal Distribution
@@ -24,6 +41,7 @@ penguins |>
 ```
 
 ## Data Cleaning
+
 ```{r}
 head(mtcars)
 ggplot(mtcars,aes(x= disp,y=hp,col=as.factor(cyl)))+
@@ -32,4 +50,3 @@ ggplot(mtcars,aes(x= disp,y=hp,col=as.factor(cyl)))+
 
 
 ```
-
