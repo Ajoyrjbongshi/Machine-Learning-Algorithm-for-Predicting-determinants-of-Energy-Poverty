@@ -33,10 +33,11 @@ x <- rnorm(1000,2,5)
 hist(x)
 ```
 
-```{r}
+```{r, message=FALSE}
 penguins |> 
-  ggplot(aes(x= bill_length_mm))+
-  geom_histogram(bins = 30,col = "Blue",alpha=0.5)
+  ggplot(aes(x= bill_length_mm, fill = species))+
+  geom_histogram(bins = 50, alpha=0.8) 
+
 
 ```
 
