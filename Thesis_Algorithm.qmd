@@ -2,6 +2,7 @@
 title: "Algorithm"
 format: pdf
 editor: visual
+geometry: "left=1cm,right=1cm,top=2cm,bottom=2cm"
 ---
 
 ```{r,message=FALSE, warning=FALSE}
@@ -9,6 +10,11 @@ library(tidyverse)
 library(haven)
 library(palmerpenguins)
 library(gtsummary)
+library(caret)
+library(finalfit)
+library(ranger)
+library(kernlab)
+
 ```
 
 ## Import dataset
@@ -16,7 +22,7 @@ library(gtsummary)
 ```{r,message=FALSE}
 
 #PR <- read_spss("BDPR7RFL.SAV")
-hr <- read_spss("BDHR7RFL.SAV")
+hr <- read_sav("BDHR7RFL.SAV")
 
 #PR_df <-PR |> 
 # select(HV226, HV206, HV208, HV243A, HV221, HV209, HV242, HV025, HV220, HV219, HV106,               HV115, SH13, HV270, HV009) |> 
@@ -31,16 +37,20 @@ hr <- read_spss("BDHR7RFL.SAV")
 
 
 hr_df <- hr |> 
-  select(HV226, HV206, HV208, HV243A, HV221, HV209, HV242,HV241, HV025, HV220, HV219, `HV106$01`,               `HV115$01`, `SH13$01`, HV270, HV009) |> 
+  select(HV226, HV206, HV208, HV243A, HV221, HV209, HV242,HV241, HV025, HV220, 
+         HV219, `HV106$01`, HV024, `HV115$01`, `SH13$01`, HV270, HV009) |> 
   ## Renaming Variable
   rename(fuel= HV226, Electricity = HV206, Television = HV208,
          Mobile.phone = HV243A, Landline = HV221, Refrigerator = HV209,
-         separate.kitchen = HV242,  Kitchen = HV241, residence = HV025, age = HV220,
+         separate.kitchen = HV242,  Kitchen = HV241, residence = HV025, 
+         age = HV220, Division = HV024,
          sex = HV219, education = `HV106$01`, marital.status = `HV115$01`, 
          work.status = `SH13$01`, Wealth.index = HV270, Family.size = HV009) |> 
   
-        mutate(cooking.fuel = case_when(fuel <= 5 ~ 1,  ## Categories fuel into two categories
-                                        fuel == 6 ~ 0, ## 1= Clean, 0 = Unclean
+        mutate(cooking.fuel = case_when(fuel <= 5 ~ 1,  
+                                        ## Categories fuel into two categories
+                                        fuel == 6 ~ 0,
+                                        ## 1 = Clean, 0 = Unclean
                                         fuel == 7 ~ 0,
                                         fuel == 8 ~ 0,
                                         fuel == 9 ~ 0,
@@ -50,61 +60,323 @@ hr_df <- hr |>
                sex = case_when(sex == 2 ~ 0,
                                sex == 1 ~ 1),
                residence = case_when(residence == 1 ~ 1,
+                                     # 1 = Urban 0 = Rural
                                      residence ==2 ~ 0),
                marital.status = case_when(marital.status == 1 ~ 1,
-                                          marital.status == 2 ~ 1,# 1 = Yes
+                                          marital.status == 2 ~ 1,
+                                          # 1 = Yes
                                           marital.status == 0 ~ 0,
                                           marital.status == 3 ~ 0,
                                           marital.status == 4 ~ 0,
-                                          marital.status == 5 ~ 0) # 0 = No
+                                          marital.status == 5 ~ 0), 
+                                          # 0 = No
                
-        
-        
+               separate.kitchen = if_else(separate.kitchen == 1, 1, 0, missing = 1),
+                                          # 0 = No 1 = Yes
+               
+               tele.communication = case_when(Landline == 1 | Mobile.phone == 1 ~ 1,
+                                              TRUE ~ 0)
+                                          # 1 = Yes 0 = N0
         )
+
+table(hr_df$separate.kitchen)
+table(hr_df$tele.communication)
+head(hr_df)
 
 
 
   
 ```
-
 
 ## Multidimentional Energy Poverty Index:
 
 ```{r}
-hr_mp <- hr_df |> 
-  select(cooking.fuel, Electricity, Television, Mobile.phone, Landline, Refrigerator, separate.kitchen,
-         Kitchen)
 
-Y <- as.matrix(hr_mp[c(-8)])
-
-head(Y)
-names(hr_mp)
-
-
-M = hr_mp |> 
-  select(Kitchen,separate.kitchen) |> 
-  mutate(Kitchen = case_when(Kitchen == 2 ~ "Build",
-                             Kitchen == 3 ~ "outdoor",
-                             Kitchen == 6 ~ "outdoor",
-                             Kitchen == 1 ~ "Indoor"),
-         sp = if_else(separate.kitchen == 0, 0,1, missing = 2),
+hr_ep <-  hr_df |> 
+  select(cooking.fuel, Electricity, Television, tele.communication , 
+         Refrigerator, separate.kitchen,residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size, Division) |> 
+  mutate(cooking.fuel = case_when( cooking.fuel == 0 ~ 1,
+                                   cooking.fuel == 1 ~ 0, 
+                                   # 1 = Do not use clean fuel
+                                   TRUE ~ NA),
+         Electricity = case_when( Electricity == 0 ~ 1, 
+                                  # 1 = Do not have Electricity
+                                  Electricity == 1 ~ 0),
          
-         sp.kit = case_when( sp == 0 & Kitchen == "outdoor" ~ 1,
-                             sp == 2 & Kitchen == "outdoor" ~ 1,
-                             sp == 1 & Kitchen == "Indoor" ~ 0,
-                             sp == 2 & Kitchen == "Build" ~ 0)
+         Television = case_when( Television == 0 ~ 1,
+                                 # 1 = Do not have Television
+                                 Television == 1 ~ 0),
          
-         )
-      
+         tele.communication = case_when( tele.communication == 0 ~ 1, 
+                                 # 1 = Do not have a landline or mobile phone
+                                         tele.communication == 1 ~ 0),
+         
+         Refrigerator = case_when( Refrigerator == 0 ~ 1, 
+                                   # 1 = Do not have Refrigerator
+                                   Refrigerator == 1 ~ 0),
+         
+         separate.kitchen = case_when( separate.kitchen == 0 ~ 1, 
+                                       # 1 = Do not have separate.kitchen
+                                       separate.kitchen == 1 ~ 0),
+         
+         ) |> 
+  na.omit()
   
 
-table(M$sp.kit)
+head(hr_ep)
 
 
+
+
+table(hr_ep$cooking.fuel)
+table(hr_df$cooking.fuel)
+
+table(hr_ep$Electricity)
+table(hr_df$Electricity)
+
+table(hr_ep$Television)
+table(hr_df$Television)
+
+table(hr_ep$tele.communication)
+table(hr_df$tele.communication)
+
+table(hr_ep$Refrigerator)
+table(hr_df$Refrigerator)
+
+table(hr_ep$separate.kitchen)
+table(hr_df$separate.kitchen)
+
+
+```
+
+```{r}
+
+
+
+
+
+w <-c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+
+
+
+y1 = as.matrix(hr_ep$cooking.fuel)*(w[1])
+y2 = as.matrix(hr_ep$Electricity)*w[2]
+y3 = as.matrix(hr_ep$Television)*w[3]
+y4 = as.matrix(hr_ep$tele.communication)*w[4]
+y5 = as.matrix(hr_ep$Refrigerator)*w[5]
+y6 = as.matrix(hr_ep$separate.kitchen)*w[6]
+
+head(y6)
+Y = as.matrix(cbind(y1,y2,y3,y4,y5,y6),ncol = 6)
+
+
+
+head(Y)
+
+#C = Y * as.vector(w)
+C = Y
+
+Energy <- C %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          
+          deprived = case_when( deprivation_score >= 0.35 ~ deprivation_score,
+                                deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                           TRUE ~ 1)
+          
+          )
+
+dim(Y)
+dim(t(w))
+
+
+head(C)  
+head(Y)
+head(Energy)
+
+head = 13113/19417 ;head
+
+intensity = sum(Energy$deprived)/13113;intensity
+
+MEPI = head * intensity;MEPI
+
+table(Energy$energy_poor)
 
 
 
 ```
+
+#Building Model
+
+
+```{r,warning=FALSE}
+
+hr_ml <-hr_ep |> 
+  select(Family.size, age, residence, sex, education, marital.status, work.status, Wealth.index, Division) |> 
+  na.omit()
+
+hr_ml$poverty <- cbind(Energy$energy_poor)
+
+head(hr_ml)
+table(hr_ml$poverty)
+
+
+
+hrml1 <- hr_ml |> 
+  mutate_at(factor, .vars = vars(residence:poverty))
+
+
+hrml1 |> 
+  pivot_longer(poverty) |>
+  mutate(Ep = case_when( value == 1 ~ "Energy Poor",
+                       TRUE ~ "Energy non Poor"),
+         Division = case_when(Division == 1 ~ "Barisal",
+                              Division == 2 ~  "Chittagong",
+                              Division == 3 ~ "Dhaka",
+                              Division == 4 ~ "Khulna",
+                              Division == 5 ~ "Mymensingh",
+                              Division == 6 ~ "Rajshahi",
+                              Division == 7 ~ "Rangpur",
+                              Division == 8 ~ "Sylhet"
+                              )) |> 
+  ggplot(aes(x = value)) + 
+  geom_bar(aes(fill= Ep),alpha = 0.8) +
+  facet_wrap(~Division,scales = "free") +
+  theme_minimal()
+
+```
+
+
+
+
+
+
+```{r,warning=FALSE,message=FALSE}
+hrml1 |> 
+   tbl_summary(by = poverty) |> 
+  add_p()
+
+
+names(hrml1)
+
+dependent = names(hrml1)[10] 
+explanatory = names(hrml1)[-c(10)]
+
+T <-hrml1 |> 
+  finalfit(dependent,explanatory, metrics = FALSE,p = TRUE,estimate_name = "Odds ratio",digits = c(3,3,4),confint_sep = " to ")
+
+
+knitr::kable(T,
+             caption = "Logistic regression results predicting likelihood of Energy Poverty")
+
+
+
+
+  
+
+
+
+```
+
+
+# Model Building
+
+
+
+
+
+```{r}
+
+
+split <-  createDataPartition(hrml1$poverty, p=3/4, list = FALSE)
+training <- hrml1[split,]
+testing <- hrml1[-split,]
+
+```
+
+
+```{r}
+set.seed(12345)
+model <- train(poverty ~ ., data =training,
+method = "svmLinear",
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = trainControl(method = "none"),
+tune_grid = data.frame(degree=1, scale = 1, C=1))
+
+model.cv <- train(poverty ~ ., data = training,
+method = "svmLinear",
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = trainControl(method = "cv",number = 10),
+tuneGrid = expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5)),
+tuneLength = 10)
+
+model.Rf <- train(poverty ~ ., data = training,
+method = 'ranger',
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = trainControl(method = "cv",number = 10))
+
+model.knn <- train(poverty ~ ., data = training,
+method = "knn",
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = trainControl(method = "cv",number = 10))
+
+model.glm <- train(poverty ~ ., data = training,
+method = "glm",
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = trainControl(method = "cv",number = 10))
+```
+
+## Apply model for prediction
+
+```{r}
+model.train <- predict(model, training)
+model.test <- predict(model, testing)
+model.cross <- predict(model.cv,training)
+model.cross.test <-  predict(model.cv, testing)
+model.random.forest <- predict(model.Rf,training)
+model.random.forest.test <- predict(model.Rf, testing)
+model.kNN <- predict(model.knn,training)
+model.kNN.test <-  predict(model.knn, testing)
+model.lr <- predict(model.glm,training)
+model.lr.test <-  predict(model.glm, testing)
+```
+
+## Display confusion matrix
+
+```{r}
+model.train.confusion <- confusionMatrix(model.train, training$poverty, positive = "1")
+print(model.train.confusion)
+model.test.confusion <- confusionMatrix(model.test, testing$poverty)
+print(model.test.confusion)
+model.cv.confusion <- confusionMatrix(model.cross, training$poverty)
+model.cv.confusion1 <- confusionMatrix(model.cross.test, testing$poverty)
+print(model.cv.confusion)
+print(model.cv.confusion1)
+model.rf.confusion <- confusionMatrix(model.random.forest,training$poverty)
+model.rf.confusion1 <- confusionMatrix(model.random.forest.test, testing$poverty)
+print(model.rf.confusion)
+print(model.rf.confusion1)
+model.knn.confusion <- confusionMatrix(model.kNN, training$poverty)
+model.knn.confusion1 <- confusionMatrix(model.kNN.test, testing$poverty)
+print(model.knn.confusion)
+print(model.knn.confusion1)
+model.glm.confusion <- confusionMatrix(model.lr,training$poverty)
+model.glm.confusion1 <- confusionMatrix(model.lr.test,testing$poverty)
+print(model.glm.confusion)
+print(model.glm.confusion1)
+
+```
+
+
+
 
 
 ## Univariate Analysis
@@ -118,15 +390,13 @@ hr_a <- hr_df |>
   tbl_summary()
 
 
-hr_a
+skimr::skim(hrml1) %>%
+select(-c( n_missing,complete_rate)) %>%
+filter(skim_variable != "poverty")
 
 
 
 ```
-
-
-
-
 
 ## Generate data from Normal Distribution
 
