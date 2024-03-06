@@ -14,6 +14,10 @@ library(caret)
 library(finalfit)
 library(ranger)
 library(kernlab)
+library(MLeval)
+library(bangladesh)
+library(viridisLite)
+library(viridis)
 
 ```
 
@@ -45,7 +49,7 @@ hr_df <- hr |>
          separate.kitchen = HV242,  Kitchen = HV241, residence = HV025, 
          age = HV220, Division = HV024,
          sex = HV219, education = `HV106$01`, marital.status = `HV115$01`, 
-         work.status = `SH13$01`, Wealth.index = HV270, Family.size = HV009) |> 
+         work.status = `SH13$01`, Wealth.index = HV270, Fsize = HV009) |> 
   
         mutate(cooking.fuel = case_when(fuel <= 5 ~ 1,  
                                         ## Categories fuel into two categories
@@ -75,8 +79,12 @@ hr_df <- hr |>
                                           # 0 = No 1 = Yes
                
                tele.communication = case_when(Landline == 1 | Mobile.phone == 1 ~ 1,
-                                              TRUE ~ 0)
+                                              TRUE ~ 0),
                                           # 1 = Yes 0 = N0
+               Family.size = case_when(Fsize < 3 ~ 0,
+                                       TRUE ~ 1) 
+                                          # 1 = Large Family 0 = Small family
+               
         )
 
 table(hr_df$separate.kitchen)
@@ -126,6 +134,7 @@ hr_ep <-  hr_df |>
 
 head(hr_ep)
 
+table(hr_ep$Family.size)
 
 
 
@@ -152,14 +161,7 @@ table(hr_df$separate.kitchen)
 
 ```{r}
 
-
-
-
-
 w <-c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
-
-
-
 
 y1 = as.matrix(hr_ep$cooking.fuel)*(w[1])
 y2 = as.matrix(hr_ep$Electricity)*w[2]
@@ -168,10 +170,7 @@ y4 = as.matrix(hr_ep$tele.communication)*w[4]
 y5 = as.matrix(hr_ep$Refrigerator)*w[5]
 y6 = as.matrix(hr_ep$separate.kitchen)*w[6]
 
-head(y6)
 Y = as.matrix(cbind(y1,y2,y3,y4,y5,y6),ncol = 6)
-
-
 
 head(Y)
 
@@ -185,23 +184,18 @@ Energy <- C %>% as_tibble() %>%
                                 deprivation_score < 0.35 ~ 0),
           
           energy_poor = case_when(deprived == 0 ~ 0,
-                           TRUE ~ 1)
-          
-          )
-
-dim(Y)
-dim(t(w))
-
+                           TRUE ~ 1))
 
 head(C)  
 head(Y)
 head(Energy)
 
-head = 13113/19417 ;head
+head.count = sum(Energy$energy_poor==1)/length(Energy$energy_poor)
+head.count
 
-intensity = sum(Energy$deprived)/13113;intensity
+intensity = sum(Energy$deprived)/sum(Energy$energy_poor==1);intensity
 
-MEPI = head * intensity;MEPI
+MEPI = head.count * intensity;MEPI
 
 table(Energy$energy_poor)
 
@@ -209,13 +203,446 @@ table(Energy$energy_poor)
 
 ```
 
-#Building Model
 
+# Multidimensional Energy Poverty Index by Division: Barisal
+
+
+```{r}
+
+hr_barisal <- hr_ep |> 
+  select(-c(residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size)) |> 
+  filter(Division == 1) |> 
+  select(-Division)
+
+w1 <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+z = as.matrix(hr_barisal)
+
+
+## Using for loop for creating deprivation score matrix
+
+for (i in 1:nrow(z)) {
+ Y_barisal = matrix(nrow = nrow(z), ncol = ncol(z))
+for (j in 1:length(w1)) {
+  
+  Y_barisal[,j] = z[,j] * w1[j]
+  
+}
+}
+
+head(Y_barisal)
+
+
+Energy_barisal <- Y_barisal %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          deprived = case_when(deprivation_score >= 0.35 ~ deprivation_score,
+                               deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                                           TRUE ~ 1))
+head.count.barisal = sum(Energy_barisal$energy_poor==1)/length(Energy_barisal$energy_poor)
+head.count.barisal
+
+intensity.barisal = sum(Energy_barisal$deprived)/sum(Energy_barisal$energy_poor==1)
+intensity.barisal
+
+MEPI.barisal = head.count.barisal * intensity.barisal
+MEPI.barisal
+
+
+```
+
+# Multidimensional Energy Poverty Index by Division: Chittagong
+
+```{r}
+
+hr_Chittagong <- hr_ep |> 
+  select(-c(residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size)) |> 
+  filter(Division == 2) |> 
+  select(-Division)
+
+w2 <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+z1 = as.matrix(hr_Chittagong)
+
+
+## Using for loop for creating deprivation score matrix
+
+for (i in 1:nrow(z1)) {
+ Y_Chittagong = matrix(nrow = nrow(z1), ncol = ncol(z1))
+for (j in 1:length(w2)) {
+  
+  Y_Chittagong[,j] = z1[,j] * w2[j]
+  
+}
+}
+
+head(Y_Chittagong)
+
+
+Energy_Chittagong <- Y_Chittagong %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          deprived = case_when(deprivation_score >= 0.35 ~ deprivation_score,
+                               deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                                           TRUE ~ 1))
+hc.Chittagong = sum(Energy_Chittagong$energy_poor==1)/length(Energy_Chittagong$energy_poor)
+hc.Chittagong
+
+intensity.Chittagong = sum(Energy_Chittagong$deprived)/sum(Energy_Chittagong$energy_poor==1)
+intensity.Chittagong
+
+MEPI.Chittagong = hc.Chittagong * intensity.Chittagong
+MEPI.Chittagong
+
+```
+# Multidimensional Energy Poverty Index by Division: Dhaka
+
+```{r}
+
+hr_Dhaka <- hr_ep |> 
+  select(-c(residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size)) |> 
+  filter(Division == 3) |> 
+  select(-Division)
+
+w3 <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+z2 = as.matrix(hr_Dhaka)
+
+
+## Using for loop for creating deprivation score matrix
+
+for (i in 1:nrow(z2)) {
+ Y_Dhaka = matrix(nrow = nrow(z2), ncol = ncol(z2))
+for (j in 1:length(w3)) {
+  
+  Y_Dhaka[,j] = z2[,j] * w3[j]
+  
+}
+}
+
+head(Y_Dhaka)
+
+
+Energy_Dhaka <- Y_Dhaka %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          deprived = case_when(deprivation_score >= 0.35 ~ deprivation_score,
+                               deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                                           TRUE ~ 1))
+hc.Dhaka = sum(Energy_Dhaka$energy_poor==1)/length(Energy_Dhaka$energy_poor)
+hc.Dhaka
+
+intensity.Dhaka = sum(Energy_Dhaka$deprived)/sum(Energy_Dhaka$energy_poor==1)
+intensity.Dhaka
+
+MEPI.Dhaka = hc.Dhaka * intensity.Dhaka
+MEPI.Dhaka
+
+
+```
+
+# Multidimensional Energy Poverty Index by Division: Khulna
+
+```{r}
+hr_Khulna <- hr_ep |> 
+  select(-c(residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size)) |> 
+  filter(Division == 4) |> 
+  select(-Division)
+
+w4 <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+z3 = as.matrix(hr_Khulna)
+
+
+## Using for loop for creating deprivation score matrix
+
+for (i in 1:nrow(z3)) {
+ Y_Khulna = matrix(nrow = nrow(z3), ncol = ncol(z3))
+for (j in 1:length(w4)) {
+  
+  Y_Khulna[,j] = z3[,j] * w4[j]
+  
+}
+}
+
+head(Y_Khulna)
+
+
+Energy_Khulna <- Y_Khulna %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          deprived = case_when(deprivation_score >= 0.35 ~ deprivation_score,
+                               deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                                           TRUE ~ 1))
+hc.Khulna = sum(Energy_Khulna$energy_poor==1)/length(Energy_Khulna$energy_poor)
+hc.Khulna
+
+intensity.Khulna = sum(Energy_Khulna$deprived)/sum(Energy_Khulna$energy_poor==1)
+intensity.Khulna
+
+MEPI.Khulna = hc.Khulna * intensity.Khulna
+MEPI.Khulna
+
+```
+
+
+
+# Multidimensional Energy Poverty Index by Division: Mymensingh
+
+```{r}
+
+hr_Mym <- hr_ep |> 
+  select(-c(residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size)) |> 
+  filter(Division == 5) |> 
+  select(-Division)
+
+w5 <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+z4 = as.matrix(hr_Mym)
+
+
+## Using for loop for creating deprivation score matrix
+
+for (i in 1:nrow(z4)) {
+ Y_Mym = matrix(nrow = nrow(z4), ncol = ncol(z4))
+for (j in 1:length(w5)) {
+  
+  Y_Mym[,j] = z4[,j] * w5[j]
+  
+}
+}
+
+head(Y_Mym)
+
+
+Energy_Mym <- Y_Mym %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          deprived = case_when(deprivation_score >= 0.35 ~ deprivation_score,
+                               deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                                           TRUE ~ 1))
+hc.Mym = sum(Energy_Mym$energy_poor==1)/length(Energy_Mym$energy_poor)
+hc.Mym
+
+intensity.Mym = sum(Energy_Mym$deprived)/sum(Energy_Mym$energy_poor==1)
+intensity.Mym
+
+MEPI.Mym = hc.Mym * intensity.Mym
+MEPI.Mym
+
+```
+
+
+
+# Multidimensional Energy Poverty Index by Division: Rajshahi
+
+```{r}
+
+hr_Rajshahi <- hr_ep |> 
+  select(-c(residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size)) |> 
+  filter(Division == 6) |> 
+  select(-Division)
+
+w6 <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+z5 = as.matrix(hr_Rajshahi)
+
+
+## Using for loop for creating deprivation score matrix
+
+for (i in 1:nrow(z5)) {
+ Y_Rajshahi = matrix(nrow = nrow(z5), ncol = ncol(z5))
+for (j in 1:length(w6)) {
+  
+  Y_Rajshahi[,j] = z5[,j] * w6[j]
+  
+}
+}
+
+head(Y_Rajshahi)
+
+
+Energy_Rajshahi <- Y_Rajshahi %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          deprived = case_when(deprivation_score >= 0.35 ~ deprivation_score,
+                               deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                                           TRUE ~ 1))
+hc.Rajshahi = sum(Energy_Rajshahi$energy_poor==1)/length(Energy_Rajshahi$energy_poor)
+hc.Rajshahi
+
+intensity.Rajshahi = sum(Energy_Rajshahi$deprived)/sum(Energy_Rajshahi$energy_poor==1)
+intensity.Rajshahi
+
+MEPI.Rajshahi = hc.Rajshahi * intensity.Rajshahi
+MEPI.Rajshahi
+
+
+
+```
+
+
+
+# Multidimensional Energy Poverty Index by Division: Rangpur
+
+
+```{r}
+
+
+hr_Rangpur <- hr_ep |> 
+  select(-c(residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size)) |> 
+  filter(Division == 7) |> 
+  select(-Division)
+
+w7 <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+z6 = as.matrix(hr_Rangpur)
+
+
+## Using for loop for creating deprivation score matrix
+
+for (i in 1:nrow(z6)) {
+ Y_Rangpur = matrix(nrow = nrow(z6), ncol = ncol(z6))
+for (j in 1:length(w7)) {
+  
+  Y_Rangpur[,j] = z6[,j] * w7[j]
+  
+}
+}
+
+head(Y_Rangpur)
+
+
+Energy_Rangpur <- Y_Rangpur %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          deprived = case_when(deprivation_score >= 0.35 ~ deprivation_score,
+                               deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                                           TRUE ~ 1))
+hc.Rangpur = sum(Energy_Rangpur$energy_poor==1)/length(Energy_Rangpur$energy_poor)
+hc.Rangpur
+
+intensity.Rangpur = sum(Energy_Rangpur$deprived)/sum(Energy_Rangpur$energy_poor==1)
+intensity.Rangpur
+
+MEPI.Rangpur = hc.Rangpur * intensity.Rangpur
+MEPI.Rangpur
+
+```
+
+# Multidimensional Energy Poverty Index by Division: Sylhet
+
+```{r}
+
+hr_Sylhet <- hr_ep |> 
+  select(-c(residence, age, sex, education,    
+         marital.status, work.status, Wealth.index, Family.size)) |> 
+  filter(Division == 8) |> 
+  select(-Division)
+
+w8 <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+z7 = as.matrix(hr_Sylhet)
+
+
+## Using for loop for creating deprivation score matrix
+
+for (i in 1:nrow(z7)) {
+ Y_Sylhet = matrix(nrow = nrow(z7), ncol = ncol(z7))
+for (j in 1:length(w8)) {
+  
+  Y_Sylhet[,j] = z7[,j] * w8[j]
+  
+}
+}
+
+head(Y_Sylhet)
+
+
+Energy_Sylhet <- Y_Sylhet %>% as_tibble() %>% 
+   mutate(deprivation_score = rowSums(across(where(is.numeric))),
+          deprived = case_when(deprivation_score >= 0.35 ~ deprivation_score,
+                               deprivation_score < 0.35 ~ 0),
+          
+          energy_poor = case_when(deprived == 0 ~ 0,
+                                           TRUE ~ 1))
+hc.Sylhet = sum(Energy_Sylhet$energy_poor==1)/length(Energy_Sylhet$energy_poor)
+hc.Sylhet
+
+intensity.Sylhet = sum(Energy_Sylhet$deprived)/sum(Energy_Sylhet$energy_poor==1)
+intensity.Sylhet
+
+MEPI.Sylhet = hc.Sylhet * intensity.Sylhet
+MEPI.Sylhet
+
+
+```
+
+# MEPI by Division
+
+```{r}
+MEPI.Value <- c(MEPI.barisal, MEPI.Chittagong, MEPI.Dhaka,
+                            MEPI.Khulna, MEPI.Mym, MEPI.Rajshahi,
+                            MEPI.Rangpur, MEPI.Sylhet)
+Division <- c("Barisal","Chittagong", "Dhaka", "Khulna", "Mymensingh",
+              "Rajshahi", "Rangpur", "Sylhet")
+MEPI.Division <- data.frame(Division, MEPI.Value = round(MEPI.Value,2)) 
+MEPI.Division <- as_tibble(MEPI.Division)
+MEPI.Division
+
+```
+
+
+
+```{r}
+## For loop Experiment
+
+a <- matrix(rbinom(42,1,.5), ncol = 6)
+
+b <- c(0.2, 0.2, 0.15, 0.15, 0.15, 0.15)
+
+
+for (i in 1:nrow(a)) {
+ c = matrix(nrow = nrow(a), ncol = ncol(a))
+for (j in 1:length(b)) {
+  
+  c[,j] = a[,j] * b[j]
+  
+  
+}
+}
+c
+nrow(a)
+
+
+
+class(b)
+```
+
+
+
+
+
+# Graphical Representation
 
 ```{r,warning=FALSE}
 
 hr_ml <-hr_ep |> 
-  select(Family.size, age, residence, sex, education, marital.status, work.status, Wealth.index, Division) |> 
+  select(age, Family.size, residence, sex, education, marital.status, work.status, Wealth.index, Division) |> 
   na.omit()
 
 hr_ml$poverty <- cbind(Energy$energy_poor)
@@ -226,7 +653,9 @@ table(hr_ml$poverty)
 
 
 hrml1 <- hr_ml |> 
-  mutate_at(factor, .vars = vars(residence:poverty))
+  mutate_at(factor, .vars = vars(Family.size:poverty)) |> 
+  mutate(poverty = factor(case_when(poverty == 1 ~ "Yes",
+                             TRUE ~ "No")))
 
 
 hrml1 |> 
@@ -242,13 +671,48 @@ hrml1 |>
                               Division == 7 ~ "Rangpur",
                               Division == 8 ~ "Sylhet"
                               )) |> 
-  ggplot(aes(x = value)) + 
-  geom_bar(aes(fill= Ep),alpha = 0.8) +
-  facet_wrap(~Division,scales = "free") +
+  group_by(Division)|> 
+  count(Division,value,Ep) |> 
+  mutate(prop = prop.table(n),
+         label=scales::percent(prop,accuracy = 0.1)) |> 
+  ungroup()|> 
+  ggplot(aes(x = as.factor(Ep), y = prop, label = label)) + 
+  geom_col(aes(fill= as.factor(Ep)),alpha = 0.8, show.legend = F, col="black") +
+  facet_wrap(~ Division,scales = "free") +
+  geom_text(nudge_y = 0.09) +
+  scale_y_continuous(labels = scales::percent_format()) + 
+  labs(title = "Percentage Distribution of Energy Poverty by Division",
+       x = "Energy Poverty", y = "Percentage(%)") +
   theme_minimal()
 
 ```
 
+
+
+```{r,warning=FALSE}
+
+library(tmap)
+MEPI.Division
+division <- get_map("division")
+division_centroids <- bangladesh::get_coordinates(level = "division")
+knitr::kable(division_centroids, format = "html")
+map_data <- dplyr::left_join(division, MEPI.Division, by = c("Division" = "Division"))
+
+ggplot(data = map_data, aes(fill = Division,
+                            label = MEPI.Value)) +
+  geom_sf()+
+ #geom_sf_label(aes(label = Division)) +
+  geom_sf_label(fill = "white",  # override the fill from aes()
+                fun.geometry = sf::st_centroid ) +
+  theme_void() +
+  scale_fill_viridis(name ="MEPI", discrete = TRUE, option = "H", alpha = 0.85) +
+  labs(
+    title = "Bangladesh Map",
+    subtitle = "Multidimentional Energy Poverty Index on Division Level",
+    caption = "Data Source: BDHS: 2017-18"
+  )
+
+```
 
 
 
@@ -272,33 +736,22 @@ T <-hrml1 |>
 knitr::kable(T,
              caption = "Logistic regression results predicting likelihood of Energy Poverty")
 
-
-
-
-  
-
-
-
 ```
 
-
 # Model Building
-
-
-
-
 
 ```{r}
 
 
+
+set.seed(123)
 split <-  createDataPartition(hrml1$poverty, p=3/4, list = FALSE)
 training <- hrml1[split,]
 testing <- hrml1[-split,]
 
 ```
 
-
-```{r}
+```{r,warning=FALSE}
 set.seed(12345)
 model <- train(poverty ~ ., data =training,
 method = "svmLinear",
@@ -312,8 +765,7 @@ method = "svmLinear",
 na.action = na.omit,
 preProcess = c("scale","center"),
 trControl = trainControl(method = "cv",number = 10),
-tuneGrid = expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5)),
-tuneLength = 10)
+tune_Grid = data.frame(degree=1, scale = 1, C=1))
 
 model.Rf <- train(poverty ~ ., data = training,
 method = 'ranger',
@@ -331,8 +783,68 @@ model.glm <- train(poverty ~ ., data = training,
 method = "glm",
 na.action = na.omit,
 preProcess = c("scale","center"),
+family = "binomial",
 trControl = trainControl(method = "cv",number = 10))
+
+
+
 ```
+
+
+# ROC Curve
+
+```{r}
+
+crlt <- trainControl(method = "cv",
+                     number = 10, 
+                     classProbs = TRUE, 
+                     savePredictions = TRUE,
+                     summaryFunction = twoClassSummary)
+
+
+model.glm1 <- train(poverty ~ ., data = training,
+method = "glm",
+na.action = na.omit,
+preProcess = c("scale","center"),
+family = "binomial",
+trControl = crlt,
+metric = "ROC")
+
+model.knn1 <- train(poverty ~ ., data = training,
+method = "knn",
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = crlt,
+metric = "ROC")
+
+
+
+model.svm <- train(poverty ~ ., data = training,
+method = "svmLinear",
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = crlt,
+metric = "ROC")
+
+model.rf <- train(poverty ~ ., data = training,
+method = 'rf',
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = crlt,
+metric = "ROC")
+
+model.knn1
+model.glm1
+
+res <- evalm(list(model.knn1,model.glm1, model.svm, model.rf),gnames=c('Knn','Glm', "SVM", "RF"),
+             plots = "r", title = "ROC Curve For Different model")
+varImp(model.glm1)
+
+
+
+```
+
+
 
 ## Apply model for prediction
 
@@ -352,7 +864,7 @@ model.lr.test <-  predict(model.glm, testing)
 ## Display confusion matrix
 
 ```{r}
-model.train.confusion <- confusionMatrix(model.train, training$poverty, positive = "1")
+model.train.confusion <- confusionMatrix(model.train, training$poverty)
 print(model.train.confusion)
 model.test.confusion <- confusionMatrix(model.test, testing$poverty)
 print(model.test.confusion)
@@ -375,6 +887,175 @@ print(model.glm.confusion1)
 
 ```
 
+
+
+```{r}
+
+
+library(caret)
+
+data(Sonar)
+ctrl <- trainControl(method="cv", 
+  classProbs=TRUE,savePredictions = "all")
+rfFit <- train(Class ~ ., data=Sonar, 
+  method="rf", preProc=c("center", "scale"), 
+  trControl=ctrl,
+  importance=TRUE)
+
+library(randomForest)
+
+rfo <-  randomForest(factor(poverty) ~. , data = training, importance = TRUE)
+
+library(vip)
+
+vip(rfo,aesthetics = list(alpha = 0.8, fill = "midnightblue"))
+
+
+varImp(rfFit)
+
+rfFit$variable.importance
+
+rfFit
+str(Sonar)
+
+classprobs <- predict(rfFit, newdata = Sonar, type = "prob")
+
+res <- evalm(rfFit)
+
+res$roc
+
+
+
+model.Rf <- train(poverty ~ ., data = training,
+method = 'rf',
+na.action = na.omit,
+preProcess = c("scale","center"),
+trControl = trainControl(method = "cv",number = 10))
+
+
+v <- varImp(model.Rf,scale = TRUE)[["importance"]]
+
+plot(v)
+
+R <- varImp(model.Rf)
+
+plot(R, top = 10)
+
+v |> 
+  arrange(desc(Overall))
+
+plot(varImp(model.Rf),top=5)
+
+
+```
+
+
+```{r}
+
+set.seed(4543)
+data(mtcars)
+
+library(randomForest)
+mtcars.rf <- randomForest(mpg ~ ., data=mtcars, ntree=1000, keep.forest=FALSE,
+                          importance=TRUE)
+imp <- varImpPlot(mtcars.rf) # let's save the varImp object
+
+# this part just creates the data.frame for the plot part
+library(dplyr)
+imp <- as.data.frame(imp)
+imp$varnames <- rownames(imp) # row names to column
+rownames(imp) <- NULL  
+imp$var_categ <- rep(1:2, 5) # random var category
+
+# this is the plot part, be sure to use reorder with the correct measure name
+library(ggplot2) 
+ggplot(imp, aes(x=reorder(varnames, IncNodePurity), weight=IncNodePurity, fill=as.factor(var_categ))) + 
+  geom_bar() +
+  scale_fill_discrete(name="Variable Group") +
+  ylab("IncNodePurity") +
+  xlab("Variable Name")
+
+```
+
+
+
+```{r}
+
+library(pROC)
+library(plotROC)
+selectedIndices <- rfFit$pred$mtry == 2
+
+g <- ggplot(rfFit$pred[selectedIndices, ], aes(m=M, d=factor(obs, levels = c("R", "M")))) + 
+  geom_roc(n.cuts=0) + 
+  coord_equal() +
+  style_roc()
+
+g + annotate("text", x=0.75, y=0.25, label=paste("AUC =", round((calc_auc(g))$AUC, 4)))
+
+
+ggplot(rfFit$pred[selectedIndices, ], 
+       aes(m = R, d = factor(obs, levels = c("R", "M")))) + 
+    geom_roc(hjust = -0.4, vjust = 1.5) + coord_equal()
+
+```
+
+
+
+
+```{r}
+country <- get_map("country")
+division <- get_map("division")
+district <- get_map("district")
+upazila <- get_map("upazila")
+union <- get_map("union")
+
+bd_plot("country")
+bd_plot("division")
+bd_plot("district")
+
+
+library(tmap)
+population <- bangladesh::pop_division_2011[, c("division", "population")]
+district <- get_map("district")
+division <- get_map("division")
+map_data <- dplyr::left_join(division, population, by = c("Division" = "division"))
+
+ggplot(data = map_data) +
+  geom_sf(aes(fill = population))+
+  theme_void() +
+  viridis::scale_fill_viridis(trans = "log", name="Population", labels = scales::unit_format(unit = "M", scale = 1e-6)) +
+  labs(
+    title = "Bangladesh Population Map",
+    subtitle = "Population & Housing Census 2011",
+    caption = "Data Source: BBS"
+  )
+
+division_map <- get_map("division")
+division_centroids <- bangladesh::get_coordinates(level = "division")
+knitr::kable(division_centroids, format = "html")
+ggplot(data = division_map) +
+  geom_sf() +
+  theme_void()+
+  geom_sf_label(aes(label = Division))+
+  geom_point(data = division_centroids, x = division_centroids$lon, y = division_centroids$lat, col = "red", size = 3) +
+  xlab("")+ ylab("")+
+  theme_minimal()
+
+
+sylhet_chittagong_dhaka <- get_divisions(divisions = c("Sylhet", "Chittagong", "Dhaka"),level =  "upazila")
+ggplot(data = sylhet_chittagong_dhaka) +
+  geom_sf() +
+  xlab("")+ ylab("")+
+  theme_minimal()
+
+
+amtali <- bd_search("amtali", level = "union", as.is = TRUE, coordinates = TRUE)
+knitr::kable(amtali, format = "html")
+ggplot(bangladesh::map_union) +
+  geom_sf() +
+  geom_point(data = amtali, x = amtali$lon, y = amtali$lat, col = "red", size = 3)
+
+```
 
 
 
